@@ -1,2 +1,2 @@
 # DBMS-research-project
-This is a reverse engineering of relational databases lab oriented project done under Prof R.Gururaj.
+This is an ongoing reverse engineering of relational databases lab oriented project under Prof R.Gururaj.
