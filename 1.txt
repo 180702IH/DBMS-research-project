@@ -1,0 +1,6 @@
+entity: test
+attributes: id, name, email
+primary key: id
+foreign key: None
+unique constraint:  ['name']
+not null constraint: id, email

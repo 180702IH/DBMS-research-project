@@ -1,0 +1,6 @@
+entity: test2
+attributes: att1, name, att2
+primary key: att1
+foreign key:  att2 (test)(name)
+unique constraint:  ['name']
+not null constraint: att1, att2

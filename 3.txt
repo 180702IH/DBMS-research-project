@@ -1,0 +1,6 @@
+entity: test3
+attributes: id, att1, em
+primary key: 
+foreign key: None
+unique constraint: None
+not null constraint: 
