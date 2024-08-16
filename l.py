@@ -114,7 +114,7 @@ def save_table_info_to_file(table_info, file_path):
         file.write("foreign key: ")
         if table_info.foreign_keys:
             for column_name, fk_info in table_info.foreign_keys.items():
-                file.write(f" {column_name} ({fk_info['referenced_table']})({fk_info['referenced_column']})")
+                file.write(f" {column_name}, ({fk_info['referenced_table']})->({fk_info['referenced_column']});")
         else:
             file.write("None")
         file.write("\nunique constraint: ")

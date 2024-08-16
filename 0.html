@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ER Diagram Generator</title>
+    <style>
+        .entity {
+            fill: lightblue;
+            stroke: black;
+            stroke-width: 1px;
+        }
+        .attribute {
+            fill: lightyellow;
+            stroke: black;
+            stroke-width: 1px;
+        }
+        .primary-key {
+            text-decoration: underline;
+        }
+        .relationship {
+            fill: lightgreen;
+            stroke: black;
+            stroke-width: 1px;
+        }
+        .weak-relationship {
+            fill: lightcoral;
+            stroke: black;
+            stroke-width: 1px;
+        }
+        .multivalued-attribute {
+            fill: lightpink;
+            stroke: black;
+            stroke-width: 1px;
+        }
+        line {
+            stroke: black;
+            stroke-width: 1px;
+        }
+        text {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Upload your .txt files to generate ER Diagram:</h2>
+    <input type="file" id="file-input" multiple><br><br>
+    <button onclick="generateERDiagram()">Generate ER Diagram</button>
+
+    <svg id="er-diagram" width="1500" height="1000"></svg>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        let entities = [];
+        let relationships = [];
+        let multivaluedAttributes = [];
+
+        function parseEntityFile(contents) {
+            const lines = contents.split('\n');
+            let entity = { name: '', attributes: [], primaryKey: [], foreignKeys: [], position: {x: 0, y: 0} };
+
+            lines.forEach(line => {
+                const parts = line.split(':');
+                if (parts.length < 2) return;
+                
+                const key = parts[0].trim().toLowerCase();
+                const value = parts[1].trim();
+                
+                if (key === 'entity') {
+                    entity.name = value;
+                } else if (key === 'attributes') {
+                    entity.attributes = value.split(',').map(attr => attr.trim());
+                } else if (key === 'primary key') {
+                    entity.primaryKey = value.split(',').map(pk => pk.trim());
+                } else if (key === 'foreign key') {
+                    entity.foreignKeys = value.split(';').map(fk => fk.trim());
+                }
+            });
+
+            entities.push(entity);
+        }
+
+        function parseRelationshipFile(contents) {
+            const lines = contents.split('\n');
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (line.startsWith('Multivalued attribute')) {
+                    const parts = line.split(' for entity ');
+                    const attribute = parts[0].replace('Multivalued attribute ', '').trim();
+                    const entityName = parts[1].replace('(', '').replace(')', '').trim();
+                    multivaluedAttributes.push({ entity: entityName, attribute: attribute });
+                } else {
+                    relationships.push(line);
+                }
+            });
+        }
+
+        function generateERDiagram() {
+            const svg = d3.select("#er-diagram");
+
+            // Positioning entities
+            const entitySpacingX = 300;
+            const entitySpacingY = 300;
+            entities.forEach((entity, i) => {
+                entity.position = {
+                    x: (i % 3) * entitySpacingX + 100,
+                    y: Math.floor(i / 3) * entitySpacingY + 100
+                };
+            });
+
+            // Draw entities
+            entities.forEach(entity => {
+                const group = svg.append("g")
+                    .attr("transform", `translate(${entity.position.x}, ${entity.position.y})`);
+
+                // Entity box
+                group.append("rect")
+                    .attr("class", "entity")
+                    .attr("width", 120)
+                    .attr("height", 60);
+
+                // Entity name
+                group.append("text")
+                    .attr("x", 60)
+                    .attr("y", 20)
+                    .attr("text-anchor", "middle")
+                    .text(entity.name);
+
+                // Attributes
+                entity.attributes.forEach((attr, i) => {
+                    const isMultivalued = multivaluedAttributes.some(mv => mv.entity === entity.name && mv.attribute === attr);
+
+                    if (isMultivalued) {
+                        // Outer ellipse for multivalued attribute
+                        group.append("ellipse")
+                            .attr("class", "multivalued-attribute")
+                            .attr("cx", 60)
+                            .attr("cy", 50 + i * 30)
+                            .attr("rx", 60)
+                            .attr("ry", 30);
+
+                        // Inner ellipse for multivalued attribute
+                        group.append("ellipse")
+                            .attr("class", "attribute")
+                            .attr("cx", 60)
+                            .attr("cy", 50 + i * 30)
+                            .attr("rx", 50)
+                            .attr("ry", 20);
+                    } else {
+                        group.append("ellipse")
+                            .attr("class", "attribute")
+                            .attr("cx", 60)
+                            .attr("cy", 50 + i * 30)
+                            .attr("rx", 50)
+                            .attr("ry", 20);
+                    }
+
+                    const text = group.append("text")
+                        .attr("x", 60)
+                        .attr("y", 50 + i * 30)
+                        .attr("text-anchor", "middle")
+                        .text(attr);
+
+                    // Underline primary keys
+                    if (entity.primaryKey.includes(attr)) {
+                        text.attr("class", "primary-key");
+                    }
+                });
+            });
+
+            // Draw relationships
+            relationships.forEach(relationship => {
+                const match = relationship.match(/(\d+:\d+|\w+)\s+relationship between\s+(\w+)\s+and\s+\((\w+)\)(.*)/i);
+                if (match) {
+                    const [_, relType, fromEntityName, toEntityName, attributes] = match;
+
+                    const fromEntity = entities.find(e => e.name === fromEntityName);
+                    const toEntity = entities.find(e => e.name === toEntityName);
+
+                    const diamondPosition = {
+                        x: (fromEntity.position.x + toEntity.position.x) / 2,
+                        y: (fromEntity.position.y + toEntity.position.y) / 2
+                    };
+
+                    const group = svg.append("g")
+                        .attr("transform", `translate(${diamondPosition.x}, ${diamondPosition.y})`);
+
+                    const diamondSize = 40;
+
+                    // Draw relationship diamond
+                    if (relationship.toLowerCase().includes('weak')) {
+                        group.append("polygon")
+                            .attr("class", "relationship weak-relationship")
+                            .attr("points", `${diamondSize},0 ${diamondSize*2},${diamondSize} ${diamondSize},${diamondSize*2} 0,${diamondSize}`);
+
+                        group.append("polygon")
+                            .attr("class", "relationship")
+                            .attr("transform", `translate(${diamondSize/2}, ${diamondSize/2})`)
+                            .attr("points", `${diamondSize/2},0 ${diamondSize},${diamondSize/2} ${diamondSize/2},${diamondSize} 0,${diamondSize/2}`);
+
+                        group.append("text")
+                            .attr("x", diamondSize)
+                            .attr("y", diamondSize + 4)
+                            .attr("text-anchor", "middle")
+                            .text("1:n weak");
+                    } else {
+                        group.append("polygon")
+                            .attr("class", "relationship")
+                            .attr("points", `${diamondSize},0 ${diamondSize*2},${diamondSize} ${diamondSize},${diamondSize*2} 0,${diamondSize}`);
+
+                        // Relationship type text
+                        group.append("text")
+                            .attr("x", diamondSize)
+                            .attr("y", diamondSize + 4)
+                            .attr("text-anchor", "middle")
+                            .text(relType);
+                    }
+
+                    // Connect from entity to relationship
+                    svg.append("line")
+                        .attr("x1", fromEntity.position.x + 60)
+                        .attr("y1", fromEntity.position.y + 30)
+                        .attr("x2", diamondPosition.x + 40)
+                        .attr("y2", diamondPosition.y + 20);
+
+                    // Connect to entity to relationship
+                    svg.append("line")
+                        .attr("x1", toEntity.position.x + 60)
+                        .attr("y1", toEntity.position.y + 30)
+                        .attr("x2", diamondPosition.x + 40)
+                        .attr("y2", diamondPosition.y + 20);
+
+                    // If it's an m:n relationship, we need to handle attributes
+                    if (relType.toLowerCase() === 'm:n' && attributes) {
+                        const relAttributes = attributes.split('with attributes ')[1].split(',').map(attr => attr.trim());
+                        relAttributes.forEach((attr, i) => {
+                            group.append("ellipse")
+                                .attr("class", "attribute")
+                                .attr("cx", 60)
+                                .attr("cy", 50 + i * 30)
+                                .attr("rx", 50)
+                                .attr("ry", 20);
+
+                            group.append("text")
+                                .attr("x", 60)
+                                .attr("y", 50 + i * 30)
+                                .attr("text-anchor", "middle")
+                                .text(attr);
+                        });
+                    }
+                }
+            });
+        }
+
+        document.getElementById('file-input').addEventListener('change', function(event) {
+            const files = event.target.files;
+            const entityFiles = [];
+            let relationshipFile = null;
+
+            for (let i = 0; i < files.length; i++) {
+                if (files[i].name.toLowerCase().includes('relationship')) {
+                    relationshipFile = files[i];
+                } else {
+                    entityFiles.push(files[i]);
+                }
+            }
+
+            const reader = new FileReader();
+
+            const readNextEntityFile = () => {
+                if (entityFiles.length === 0) {
+                    if (relationshipFile) {
+                        reader.onload = function(e) {
+                            parseRelationshipFile(e.target.result);
+                        };
+                        reader.readAsText(relationshipFile);
+                    }
+                    return;
+                }
+
+                const file = entityFiles.shift();
+                reader.onload = function(e) {
+                    parseEntityFile(e.target.result);
+                    readNextEntityFile();
+                };
+                reader.readAsText(file);
+            };
+
+            readNextEntityFile();
+        });
+    </script>
+</body>
+</html>
